@@ -1,6 +1,6 @@
 services:
 
-# Serviço Traefik
+  # Serviço Traefik
   traefik:
     image: traefik:v3.6.4
     command:
@@ -36,7 +36,7 @@ services:
   postgres:
     image: postgres:16
     environment:
-      POSTGRES_DB: lykos
+      POSTGRES_DB: lykos    # Nome do banco criado automaticamente
       POSTGRES_USER: lykos
       POSTGRES_PASSWORD: secret
     volumes:
@@ -44,14 +44,19 @@ services:
     networks:
       - lykos-net
 
-
   # Serviço auth_service
   auth-service:
-    build: ./services/auth-service
+    build:
+      context: .
+      dockerfile: services/auth-service/Dockerfile
     environment:
-      - DATABASE_URL=postgres://lykos:secret@postgres:5432/auth_db
-      - SECRET_KEY=supersecretkey123
-      - JWT_SECRET=supersecretkey123
+      # Conecta no banco 'lykos' definido no serviço postgres acima
+      - DATABASE_URL=postgres://lykos:secret@postgres:5432/lykos
+      - SECRET_KEY=dev_secret_key_123
+      - JWT_SECRET=dev_jwt_secret_123
+      # Definições do Django
+      - DEBUG=True
+      - ALLOWED_HOSTS=*
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.auth.rule=PathPrefix(`/api/auth`)"
