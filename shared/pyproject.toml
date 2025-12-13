@@ -1,0 +1,18 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "shared"
+version = "0.1.0"
+description = "Pacote compartilhado do Lykos"
+requires-python = ">=3.10"
+dependencies = [
+    "Django>=5.1.0"
+]
+
+# 👇 A MÁGICA ESTÁ AQUI: Diz onde achar o código
+[tool.setuptools.packages.find]
+where = ["."]  # Procura na raiz da pasta que foi copiada
+include = ["shared*"]  # Inclui a pasta interna 'shared' e subpastas
+namespaces = false # Desabilita namespace packages se não precisar (geralmente safer false)
