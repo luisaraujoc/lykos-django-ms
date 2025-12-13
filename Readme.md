@@ -1,4 +1,4 @@
-verifique os '.env.example' e 'docker-compose.example.yaml' para ver as variáveis de ambiente necessárias.
+verifique os `.env.example` e `docker-compose.example.yaml` para ver as variáveis de ambiente necessárias.
 
 além desses dois, o `jwt-middleware.example.yaml` para alinhar a mesma key jwt do `.env` nele.
 
