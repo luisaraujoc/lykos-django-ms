@@ -7,6 +7,6 @@ urlpatterns = [
     path('api/auth/', include('users.urls')),
     path('api/auth/', include('dj_rest_auth.urls')),                    # login, logout, refresh
     path('api/auth/registration/', include('dj_rest_auth.registration.urls')),  # register + social
-    path('api/schema/', SpectacularAPIView.as_view(), name='schema'),
-    path('api/schema/docs/', SpectacularSwaggerView.as_view(url_name='schema')),
+    path('api/auth/schema/', SpectacularAPIView.as_view(), name='schema'),
+    path('api/auth/schema/docs/', SpectacularSwaggerView.as_view(url_name='schema')),
 ]
