@@ -62,7 +62,11 @@ WSGI_APPLICATION = 'auth_service.wsgi.application'
 ASGI_APPLICATION = 'auth_service.asgi.application'
 
 DATABASES = {
-    'default': env.db('DATABASE_URL', default='postgres://lykos:secret@postgres:5432/auth_db')
+    'default': env.db('DATABASE_URL')
+}
+
+DATABASES['default']['OPTIONS'] = {
+    'options': '-c search_path=auth_db'
 }
 
 AUTH_PASSWORD_VALIDATORS = [
@@ -148,3 +152,19 @@ REST_AUTH = {
     'JWT_AUTH_REFRESH_COOKIE': 'lykos-refresh',
     'JWT_AUTH_HTTPONLY': False,
 }
+
+# ------
+
+# Configuração de E-mail para Desenvolvimento (imprime no console do Docker)
+EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
+# Para produção futuramente:
+# EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+
+# Configuração do DJ-REST-AUTH para usar JWT
+REST_USE_JWT = True
+JWT_AUTH_COOKIE = 'lykos-auth'
+JWT_AUTH_REFRESH_COOKIE = 'lykos-refresh'
+
+# Importante para o reset de senha funcionar com o frontend
+# URL que o usuário clica no e-mail (vai pro seu Front em React/Vue/etc)
+PASSWORD_RESET_CONFIRM_URL = 'password-reset/confirm/{uid}/{token}'
