@@ -168,3 +168,13 @@ JWT_AUTH_REFRESH_COOKIE = 'lykos-refresh'
 # Importante para o reset de senha funcionar com o frontend
 # URL que o usuário clica no e-mail (vai pro seu Front em React/Vue/etc)
 PASSWORD_RESET_CONFIRM_URL = 'password-reset/confirm/{uid}/{token}'
+
+# === CELERY & RABBITMQ ===
+CELERY_BROKER_URL = env('RABBITMQ_URL')
+CELERY_ACCEPT_CONTENT = ['json']
+CELERY_TASK_SERIALIZER = 'json'
+CELERY_RESULT_SERIALIZER = 'json'
+CELERY_TIMEZONE = TIME_ZONE
+
+# Configuração para garantir que a mensagem chegue (confiabilidade)
+CELERY_TASK_ACKS_LATE = True
