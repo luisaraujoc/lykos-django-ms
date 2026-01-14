@@ -1,7 +1,7 @@
 services:
   # Serviço Traefik (Proxy Reverso)
   traefik:
-    image: traefik:v3.6.4
+    image: traefik:v3.6
     command:
       - "--configFile=/etc/traefik/traefik.yaml"
     ports:
@@ -11,7 +11,7 @@ services:
     volumes:
       - ./traefik/traefik.yaml:/etc/traefik/traefik.yaml
       - ./traefik/dynamic:/etc/traefik/dynamic
-      - ./traefik/acme.json:/acme.json
+      - traefik-certificates:/letsencrypt
       - /var/run/docker.sock:/var/run/docker.sock
     networks:
       - lykos-net
@@ -20,12 +20,12 @@ services:
   minio:
     image: minio/minio
     command: server /data --console-address ":9001"
-    environment:
-      MINIO_ROOT_USER: minioadmin
-      MINIO_ROOT_PASSWORD: minioadmin123
+    # Credenciais definidas no .env (MINIO_ROOT_USER, MINIO_ROOT_PASSWORD)
+    env_file:
+      - .env
     ports:
-      - "9000:9000"
-      - "9001:9001"
+      - "9000:9000" # API S3
+      - "9001:9001" # Console Web
     volumes:
       - minio-data:/data
     networks:
@@ -35,8 +35,7 @@ services:
   swagger-ui:
     image: swaggerapi/swagger-ui
     environment:
-      # Aponta para o JSON gerado pelo Django.
-      # Se criar novos microsserviços, adicione na lista abaixo.
+      # URLS aponta para os esquemas gerados pelos microsserviços
       URLS: "[ { url: '/api/auth/schema/', name: 'Auth Service' } ]"
       VALIDATOR_URL: "none"
       DOC_EXPANSION: "list"
@@ -48,21 +47,25 @@ services:
       - "traefik.http.routers.docs.rule=PathPrefix(`/docs`)"
       - "traefik.http.routers.docs.entrypoints=web"
       - "traefik.http.services.docs.loadbalancer.server.port=8080"
-      # Middleware para remover o /docs da URL antes de enviar ao container
       - "traefik.http.middlewares.docs-strip.stripprefix.prefixes=/docs"
       - "traefik.http.routers.docs.middlewares=docs-strip"
 
   # Serviço PostgreSQL (Banco de Dados)
   postgres:
     image: postgres:16
-    environment:
-      POSTGRES_DB: lykos
-      POSTGRES_USER: lykos
-      POSTGRES_PASSWORD: secret
+    # Carrega POSTGRES_USER, POSTGRES_PASSWORD e POSTGRES_DB do .env
+    env_file:
+      - .env
     volumes:
       - postgres-data:/var/lib/postgresql/data
     networks:
       - lykos-net
+    healthcheck:
+      # Verifica saúde usando o usuário definido no .env
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-lykos}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
   # Serviço PGAdmin (Interface Gráfica do Banco)
   pgadmin:
@@ -70,8 +73,9 @@ services:
     environment:
       PGADMIN_DEFAULT_EMAIL: "admin@lykos.com"
       PGADMIN_DEFAULT_PASSWORD: "admin"
-      # Necessário para rodar em subdiretório
       SCRIPT_NAME: /pgadmin
+    ports:
+      - "5050:80" # Acesso local em http://localhost:5050
     volumes:
       - pgadmin-data:/var/lib/pgadmin
     networks:
@@ -87,26 +91,27 @@ services:
   # Serviço Auth Service (Aplicação Django)
   auth-service:
     build:
-      context: . # O contexto na raiz é essencial para copiar a pasta 'shared'
+      context: .
       dockerfile: services/auth-service/Dockerfile
-    environment:
-      - DATABASE_URL=postgres://lykos:secret@postgres:5432/lykos
-      - SECRET_KEY=AAAAB3NzaC1yc2EAAAADAQABAAACAQDJn99GWw44HGS+6YFzCL4/XgI9m/03BUjuuYqfrFSFp02mf9FG+mZBJVVmr599tV6WG5pjha4XPc7+zGP9362imHBfAjulfDw+b8WEMS0MLpZknEBFltJWgnbPZTJKwtwkF2iAUqcrjkekOY+sVB55bQT39OVFKMgqgN5jOsj0U5X2H4XCN9V6XAT7ySciFnwOMWbegH94Lqssp7G3ATujpMFvsbo5N+V/ijRZYGdqhQGp2PPhehqz4UoVb/A3s3y6zEY+3AnTL9n58QJYip68MQ75ITrbYv48nClK2Ys40zAE4sM/8sYBluwD3ML1KU+IZI3UEYzbHNH6PRmLrN7FYuQYTC4Pw64RX3pTXu/bXfVfZKG6kvBOUnqV15yzlfBSb1W8a9Yl1uK1hk5vuPMkXbJR0sZeGU5msIFMFW46SqnUoJ2rXF6JPIW1toq8k19kj7TgLOHpPa9m8sPmT9dmOO3Mw88p4D2owR7nkyzSYeSl1dJL4dZxsceyB5fooWrflK1mciilU5KRU2tdj9I/2xMdWBqsfbmoYSPpEXVClci756UR6BxwyLNlAzmX06xx76wXFM8OuFpPj4LuZnEUykocQI0YCxqza63SUkf5uHxP3wJ/Cj4mETDzPhFmreZNhD/jLHQRsEPbFP0tbMOHOXmPOEHDlzyw+l4GpFI4sw==
-      - JWT_SECRET=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiYWRtaW4iOnRydWUsImlhdCI6MTUxNjIzOTAyMn0.KMUFsIDTnFmyG3nMiGM6H9FNFUROf3wh7SmqJp-QV30
+    # Carrega as variáveis do .env para dentro do container
     env_file:
       - .env
+    # Mapeamento explícito para garantir a interpolação das chaves corretas
+    environment:
+      - DATABASE_URL=${DATABASE_URL}
+      - SECRET_KEY=${SECRET_KEY}
+      - JWT_SECRET=${JWT_SECRET}
     labels:
       - "traefik.enable=true"
-      # Roteia /api/auth (endpoints) e /api/auth/schema (JSON do swagger)
       - "traefik.http.routers.auth.rule=PathPrefix(`/api/auth`)"
       - "traefik.http.routers.auth.entrypoints=web"
       - "traefik.http.services.auth.loadbalancer.server.port=8000"
-    # Volumes para Hot Reload (atualização de código sem rebuild)
     volumes:
       - ./services/auth-service:/app
       - ./shared:/shared
     depends_on:
-      - postgres
+      postgres:
+        condition: service_healthy
     networks:
       - lykos-net
 
@@ -114,6 +119,7 @@ volumes:
   postgres-data:
   minio-data:
   pgadmin-data:
+  traefik-certificates:
 
 networks:
   lykos-net:
