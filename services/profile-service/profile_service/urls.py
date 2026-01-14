@@ -10,5 +10,4 @@ urlpatterns = [
     # Documentação Swagger
     path('api/profiles/schema/', SpectacularAPIView.as_view(), name='schema'),
     path('api/profiles/schema/docs/', SpectacularSwaggerView.as_view(url_name='schema')),
-
 ]

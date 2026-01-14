@@ -6,6 +6,13 @@ from shared.enums import NivelIdioma, StatusPerfil
 def freelancer_directory_path(instance, filename):
     return 'freelancers/user_{0}/{1}'.format(instance.id, filename)
 
+def portfolio_directory_path(instance, filename):
+    # Salva em: portfolios/user_<id>/project_<id>/<filename>
+    return 'portfolios/user_{0}/project_{1}/{2}'.format(
+        instance.project.freelancer.id,
+        instance.project.id,
+        filename
+    )
 
 class Freelancer(models.Model):
     id = models.BigIntegerField(primary_key=True, editable=False)
@@ -58,3 +65,28 @@ class Formacao(models.Model):
 
     def __str__(self):
         return f"{self.titulo} - {self.instituicao}"
+
+
+
+class PortfolioProject(models.Model):
+    freelancer = models.ForeignKey(Freelancer, on_delete=models.CASCADE, related_name='portfolio_projects')
+    titulo = models.CharField(max_length=200)
+    descricao = models.TextField(blank=True)
+    url_externa = models.URLField(blank=True, null=True)  # Link para Behance/GitHub se quiser
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"{self.titulo} ({self.freelancer.nome_exibicao})"
+
+
+class PortfolioItem(models.Model):
+    project = models.ForeignKey(PortfolioProject, on_delete=models.CASCADE, related_name='items')
+    arquivo = models.FileField(upload_to=portfolio_directory_path)
+    tipo_midia = models.CharField(max_length=20, default='IMAGEM')  # IMAGEM, VIDEO, PDF
+
+    # Campo opcional para ordenar as imagens na galeria
+    ordem = models.PositiveIntegerField(default=0)
+
+    def __str__(self):
+        return f"Item {self.id} de {self.project.titulo}"
