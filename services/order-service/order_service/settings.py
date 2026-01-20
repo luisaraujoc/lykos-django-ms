@@ -16,12 +16,12 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
 
-    # Libs
+    # Bibliotecas de Terceiros
     'rest_framework',
-    'corsheaders',
     'drf_spectacular',
+    'corsheaders',
 
-    # App Local
+    # Meus Apps
     'orders',
 ]
 
