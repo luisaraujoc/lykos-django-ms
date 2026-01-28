@@ -6,6 +6,7 @@ from shared.enums import NivelIdioma, StatusPerfil
 def freelancer_directory_path(instance, filename):
     return 'freelancers/user_{0}/{1}'.format(instance.id, filename)
 
+
 def portfolio_directory_path(instance, filename):
     # Salva em: portfolios/user_<id>/project_<id>/<filename>
     return 'portfolios/user_{0}/project_{1}/{2}'.format(
@@ -14,12 +15,37 @@ def portfolio_directory_path(instance, filename):
         filename
     )
 
+
+class PixKeyType(models.TextChoices):
+    CPF = 'CPF', _('CPF')
+    CNPJ = 'CNPJ', _('CNPJ')
+    EMAIL = 'EMAIL', _('E-mail')
+    PHONE = 'PHONE', _('Telefone (+55...)')
+    EVP = 'EVP', _('Chave Aleatória (EVP)')
+
+
 class Freelancer(models.Model):
     id = models.BigIntegerField(primary_key=True, editable=False)
     nome_exibicao = models.CharField(max_length=150, blank=True)
     foto_perfil = models.ImageField(upload_to=freelancer_directory_path, blank=True, null=True)
     bio = models.TextField(blank=True)
     status = models.CharField(max_length=20, choices=StatusPerfil.choices, default=StatusPerfil.ATIVO)
+
+    # --- Dados Bancários (PIX) ---
+    pix_key = models.CharField(
+        max_length=255,
+        blank=True,
+        null=True,
+        help_text=_("A chave em si (ex: 123.456.789-00 ou user@email.com)")
+    )
+    pix_key_type = models.CharField(
+        max_length=10,
+        choices=PixKeyType.choices,
+        blank=True,
+        null=True,
+        help_text=_("Tipo da chave para validação (CPF, EMAIL, PHONE, ETC)")
+    )
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -65,7 +91,6 @@ class Formacao(models.Model):
 
     def __str__(self):
         return f"{self.titulo} - {self.instituicao}"
-
 
 
 class PortfolioProject(models.Model):

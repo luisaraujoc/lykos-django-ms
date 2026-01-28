@@ -4,35 +4,37 @@
 # INSTRUÇÕES:
 # 1. Copie este arquivo para 'docker-compose.yml'.
 # 2. Certifique-se de ter criado o arquivo '.env' baseado no '.env.example'.
-# 3. Execute 'docker compose up -d'.
+# 3. Crie a pasta 'database' na raiz e adicione o arquivo 'init-schemas.sql'.
+# 4. Execute 'docker compose up -d'.
 # -----------------------------------------------------------------------------
 
 services:
   traefik:
-    image: traefik:v3.6
+    image: traefik:v3.0
     command:
-      - "--configFile=/etc/traefik/traefik.yaml"
+      - "--api.insecure=true"
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--entrypoints.web.address=:80"
     ports:
       - "80:80"
       - "8080:8080"
     volumes:
-      - ./traefik/traefik.yaml:/etc/traefik/traefik.yaml
-      - ./traefik/dynamic:/etc/traefik/dynamic
-      - traefik-certificates:/letsencrypt
       - /var/run/docker.sock:/var/run/docker.sock
     networks:
       - lykos-net
 
   postgres:
-    image: postgres:16
+    image: postgres:15-alpine
     env_file:
       - .env
     volumes:
       - postgres-data:/var/lib/postgresql/data
+      - ./database/init-schemas.sql:/docker-entrypoint-initdb.d/init-schemas.sql
     networks:
       - lykos-net
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-lykos}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -92,7 +94,8 @@ services:
     volumes:
       - ./services/auth-service:/app
       - ./shared:/shared
-    command: gunicorn auth_service.wsgi:application --bind 0.0.0.0:8000 --reload
+    # Usando gunicorn com reload para desenvolvimento/produção
+    command: sh -c "python manage.py migrate && gunicorn auth_service.wsgi:application --bind 0.0.0.0:8000 --reload"
     depends_on:
       postgres:
         condition: service_healthy
@@ -113,7 +116,7 @@ services:
     volumes:
       - ./services/profile-service:/app
       - ./shared:/shared
-    command: gunicorn profile_service.wsgi:application --bind 0.0.0.0:8000 --reload
+    command: sh -c "python manage.py migrate && gunicorn profile_service.wsgi:application --bind 0.0.0.0:8000 --reload"
     depends_on:
       postgres:
         condition: service_healthy
@@ -134,7 +137,7 @@ services:
     volumes:
       - ./services/catalog-service:/app
       - ./shared:/shared
-    command: gunicorn catalog_service.wsgi:application --bind 0.0.0.0:8000 --reload
+    command: sh -c "python manage.py migrate && gunicorn catalog_service.wsgi:application --bind 0.0.0.0:8000 --reload"
     depends_on:
       postgres:
         condition: service_healthy
@@ -155,7 +158,7 @@ services:
     volumes:
       - ./services/order-service:/app
       - ./shared:/shared
-    command: gunicorn order_service.wsgi:application --bind 0.0.0.0:8000 --reload
+    command: sh -c "python manage.py migrate && gunicorn order_service.wsgi:application --bind 0.0.0.0:8000 --reload"
     depends_on:
       postgres:
         condition: service_healthy

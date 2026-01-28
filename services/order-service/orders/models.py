@@ -73,3 +73,18 @@ class Transaction(models.Model):
 
     def __str__(self):
         return f"Transação {self.external_id} - {self.status}"
+
+class Wallet(models.Model):
+    user_id = models.IntegerField(unique=True) # ID do usuário do auth-service
+    pending_balance = models.DecimalField(max_digits=10, decimal_places=2, default=0) # Bloqueado
+    available_balance = models.DecimalField(max_digits=10, decimal_places=2, default=0) # Liberado para saque
+
+    def credit_pending(self, amount):
+        self.pending_balance += amount
+        self.save()
+
+    def release_funds(self, amount):
+        if self.pending_balance >= amount:
+            self.pending_balance -= amount
+            self.available_balance += amount
+            self.save()

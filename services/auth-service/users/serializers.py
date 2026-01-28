@@ -76,24 +76,30 @@ class RegisterSerializer(serializers.ModelSerializer):
         }
 
     def create(self, validated_data):
-        # ... (código existente da transaction.atomic) ...
+        pessoa_data = validated_data.pop('pessoa')
+        enderecos_data = validated_data.pop('enderecos')
+        validated_data.pop('senha2')
+        senha = validated_data.pop('senha_hash')
+
         with transaction.atomic():
             user = Usuario.objects.create_user(senha=senha, **validated_data)
+
             Pessoa.objects.create(usuario=user, **pessoa_data)
+
             for endereco in enderecos_data:
                 Endereco.objects.create(usuario=user, **endereco)
 
-        # FORA DO BLOCK ATOMIC (Só envia se salvou no banco com sucesso)
-        # Envia mensagem para a fila 'user_created'
-        payload = {
-            'id': user.id,
-            'email': user.email,
-            'nome': user.nome_usuario,
-            'tipo': user.tipo
-        }
+        try:
+            payload = {
+                'id': user.id,
+                'email': user.email,
+                'nome_usuario': user.nome_usuario,
+                'tipo': user.tipo
+            }
 
-        # O queue='celery' é o padrão. O nome da task deve bater com o do profile-service.
-        current_app.send_task('user_created', args=[payload])
+            current_app.send_task('user_created', args=[payload])
+        except Exception as e:
+            print(f"Erro ao criar usuario: {e}")
 
         return user
 
@@ -103,24 +109,7 @@ class RegisterSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError({"senha2": "As senhas não conferem."})
         return data
 
-    def create(self, validated_data):
-        pessoa_data = validated_data.pop('pessoa')
-        enderecos_data = validated_data.pop('enderecos', [])
-        validated_data.pop('senha2')
-        senha = validated_data.pop('senha_hash')
 
-        with transaction.atomic():
-            # Cria Usuario
-            user = Usuario.objects.create_user(senha=senha, **validated_data)
-
-            # Cria Pessoa (os validadores do PessoaSerializer já rodaram antes de chegar aqui)
-            Pessoa.objects.create(usuario=user, **pessoa_data)
-
-            # Cria Endereços
-            for endereco in enderecos_data:
-                Endereco.objects.create(usuario=user, **endereco)
-
-        return user
 
 
 class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):

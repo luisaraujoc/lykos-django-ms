@@ -108,3 +108,40 @@ TIME_ZONE = 'America/Sao_Paulo'
 USE_I18N = True
 USE_TZ = True
 STATIC_URL = 'static/'
+
+# --- MINIO / S3 STORAGE CONFIGURATION ---
+
+if os.getenv('USE_S3', 'False') == 'True':
+    # Backend de armazenamento
+    STORAGES = {
+        "default": {
+            "BACKEND": "storages.backends.s3.S3Storage",
+        },
+        "staticfiles": {
+            "BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage",
+        },
+    }
+
+    # Configurações de Conexão
+    AWS_ACCESS_KEY_ID = os.getenv('MINIO_ROOT_USER', 'minioadmin')
+    AWS_SECRET_ACCESS_KEY = os.getenv('MINIO_ROOT_PASSWORD', 'minioadmin')
+    AWS_S3_ENDPOINT_URL = os.getenv('AWS_S3_ENDPOINT_URL', 'http://minio:9000')
+
+    # Configurações do Bucket
+    # Cada serviço deve definir seu bucket principal no .env ou hardcoded aqui se preferir separar por pasta
+    AWS_STORAGE_BUCKET_NAME = os.getenv('AWS_STORAGE_BUCKET_NAME', 'lykos-general')
+
+    # Configurações de URL e Assinatura
+    AWS_S3_REGION_NAME = 'us-east-1'  # MinIO ignora, mas boto3 exige
+    AWS_S3_SIGNATURE_VERSION = 's3v4'
+    AWS_S3_FILE_OVERWRITE = False  # Não sobrescreve arquivos com mesmo nome
+    AWS_QUERYSTRING_AUTH = False  # Para arquivos públicos (Profile/Catalog), deixe False. Para Orders, True.
+
+    # Garante que a URL gerada seja acessível externamente (via localhost ou domínio)
+    # Em produção, isso seria 'https://minio.lykos.com.br/bucket-name'
+    AWS_S3_CUSTOM_DOMAIN = f"{os.getenv('MINIO_PUBLIC_HOST', 'localhost:9000')}/{AWS_STORAGE_BUCKET_NAME}"
+
+else:
+    # Fallback para local (desenvolvimento sem docker ou teste)
+    MEDIA_URL = '/media/'
+    MEDIA_ROOT = BASE_DIR / 'media'
