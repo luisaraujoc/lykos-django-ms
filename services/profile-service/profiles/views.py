@@ -1,133 +1,74 @@
-from rest_framework import generics, status, viewsets
+from rest_framework import viewsets, generics, status, filters
 from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated
-from rest_framework.parsers import MultiPartParser, FormParser
-from drf_spectacular.utils import extend_schema, OpenApiParameter, OpenApiTypes
+from rest_framework.views import APIView
+from rest_framework.permissions import IsAuthenticated, AllowAny
+from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
+from .serializers import TornarSeFreelancerSerializer
+from .authentication import StatelessJWTAuthentication
 
-from .serializers import TornarSeFreelancerSerializer, PortfolioProjectSerializer, FreelancerSerializer
-from .models import Freelancer, PortfolioProject
+from .models import Freelancer, PortfolioItem, Idioma, Habilidade
+from .serializers import (
+    TornarSeFreelancerSerializer,
+    PortfolioItemSerializer,
+    FreelancerSerializer,
+    IdiomaSerializer,
+    HabilidadeSerializer
+)
 
 
-@extend_schema(tags=['Cadastro de Freelancer'])
-class TornarSeFreelancerView(generics.CreateAPIView):
+class TornarSeFreelancerView(APIView):
     """
-    Endpoint para transformar o usuário logado em Freelancer.
-
-    Requer:
-    - Multipart/Form-Data
-    - Foto de Perfil
-    - Dados Pessoais (Nome, Bio)
-    - Arrays de Skills e Idiomas
-    - Objeto de Formação
+    Endpoint para criar/atualizar perfil de vendedor.
+    Recebe Multipart Form Data (Arquivo + Dados).
     """
-    permission_classes = [IsAuthenticated]
-    parser_classes = [MultiPartParser, FormParser]
-    serializer_class = TornarSeFreelancerSerializer
+    authentication_classes = [StatelessJWTAuthentication]
+    permission_classes = [IsAuthenticated]  # Exige token válido
+    parser_classes = (MultiPartParser, FormParser)  # Crucial para receber a imagem
 
-    @extend_schema(
-        summary="Registrar usuário como Freelancer",
-        description="Recebe foto e dados para criar o perfil profissional.",
-        responses={201: {"description": "Perfil criado com sucesso", "example": {"detail": "Sucesso", "id": 1}}}
-    )
     def post(self, request, *args, **kwargs):
-        return self.create(request, *args, **kwargs)
+        # Passa o request no context para pegarmos o user.id dentro do serializer
+        serializer = TornarSeFreelancerSerializer(data=request.data, context={'request': request})
 
-    def create(self, request, *args, **kwargs):
-        serializer = self.get_serializer(data=request.data, context={'request': request})
-        serializer.is_valid(raise_exception=True)
-        freelancer = serializer.save()
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
 
-        return Response({
-            "detail": "Perfil de freelancer criado com sucesso!",
-            "id": freelancer.id,
-            "nome": freelancer.nome_exibicao
-        }, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
-@extend_schema(tags=['Portfólio'])
-class PortfolioViewSet(viewsets.ModelViewSet):
-    """
-    CRUD completo de Projetos de Portfólio.
-    Permite upload de múltiplos arquivos por projeto.
-    """
-    serializer_class = PortfolioProjectSerializer
-    permission_classes = [IsAuthenticated]
-    parser_classes = [MultiPartParser, FormParser]
-
-    def get_queryset(self):
-        return PortfolioProject.objects.filter(freelancer__id=self.request.user.id).order_by('-created_at')
-
-    def perform_create(self, serializer):
-        serializer.save()
-
-    @extend_schema(
-        summary="Listar projetos",
-        description="Retorna apenas os projetos do usuário logado."
-    )
-    def list(self, request, *args, **kwargs):
-        return super().list(request, *args, **kwargs)
-
-    @extend_schema(
-        summary="Criar novo projeto",
-        description="Cria projeto e faz upload dos itens da galeria.",
-        request={
-            'multipart/form-data': {
-                'type': 'object',
-                'properties': {
-                    'titulo': {'type': 'string'},
-                    'descricao': {'type': 'string'},
-                    'arquivos_upload': {
-                        'type': 'array',
-                        'items': {'type': 'string', 'format': 'binary'}
-                    }
-                }
-            }
-        }
-    )
-    def create(self, request, *args, **kwargs):
-        return super().create(request, *args, **kwargs)
-
-
-
-@extend_schema(tags=['Perfil do Freelancer'])
-class FreelancerMeView(generics.RetrieveUpdateAPIView):
-    """
-    Endpoint para ver e editar o próprio perfil.
-    Suporta GET (Ler) e PATCH (Atualizar).
-    Para atualizar listas (skills, idiomas), envie a lista completa nova.
-    """
+class FreelancerMeView(generics.RetrieveAPIView):
+    authentication_classes = [StatelessJWTAuthentication]
     serializer_class = FreelancerSerializer
     permission_classes = [IsAuthenticated]
-    parser_classes = [MultiPartParser, FormParser]
 
     def get_object(self):
-        # Busca o Freelancer pelo ID do usuário logado
-        return generics.get_object_or_404(Freelancer, id=self.request.user.id)
+        # Retorna o perfil do usuário logado
+        return Freelancer.objects.get(id=self.request.user.id)
 
-    @extend_schema(
-        summary="Obter meu perfil",
-        description="Retorna os dados públicos do freelancer logado."
-    )
-    def get(self, request, *args, **kwargs):
-        return super().get(request, *args, **kwargs)
 
-    @extend_schema(
-        summary="Atualizar meu perfil",
-        description="Atualiza campos informados. Para remover uma skill, envie a lista 'skills_input' sem ela.",
-        request={
-            'multipart/form-data': {
-                'type': 'object',
-                'properties': {
-                    'nome': {'type': 'string'},
-                    'descricao': {'type': 'string'},
-                    'fotoPerfil': {'type': 'string', 'format': 'binary'},
-                    'skills_input': {'type': 'array', 'items': {'type': 'string'}},
-                    'idiomas_input': {'type': 'array', 'items': {'type': 'string'}},
-                    # No Swagger, objetos complexos em multipart são chatos de representar,
-                    # mas o backend aceita JSON string ou form-data indexado.
-                }
-            }
-        }
-    )
-    def patch(self, request, *args, **kwargs):
-        return super().patch(request, *args, **kwargs)
+class IdiomaViewSet(viewsets.ReadOnlyModelViewSet):
+    queryset = Idioma.objects.all().order_by('nome')
+    serializer_class = IdiomaSerializer
+    permission_classes = [AllowAny]
+    authentication_classes = []
+
+    filter_backends = [filters.SearchFilter]
+    search_fields = ['nome', 'iso_codigo']
+
+
+class HabilidadeViewSet(viewsets.ReadOnlyModelViewSet):
+    queryset = Habilidade.objects.all().order_by('nome')
+    serializer_class = HabilidadeSerializer
+    permission_classes = [AllowAny]
+    authentication_classes = []
+
+    filter_backends = [filters.SearchFilter]
+    search_fields = ['nome']
+
+class PortfolioViewSet(viewsets.ModelViewSet):
+    authentication_classes = [StatelessJWTAuthentication]
+    serializer_class = PortfolioItemSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        return PortfolioItem.objects.filter(project__freelancer__id=self.request.user.id)
